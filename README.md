@@ -165,11 +165,3 @@ python manage.py test
 | `KAKAO_REDIRECT_URI` | 카카오 로그인 리다이렉트 URI | http://localhost:8000/api/user/kakao/callback |
 | `KAKAO_PAY_KEY` | 카카오페이 시크릿 키 | your-kakao-pay-secret |
 | `CID` | 카카오페이 가맹점 ID | TC0ONETIME |
-
-## 🤝 기여하기
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
