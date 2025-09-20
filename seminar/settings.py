@@ -30,9 +30,12 @@ environ.Env.read_env(
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
-KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY') 
+
+# 카카오 로그인 설정
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY')
 KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
 KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -60,6 +63,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Payment',
+    'Auction',
 ]
 
 MIDDLEWARE = [
@@ -76,11 +80,15 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
 SESSION_COOKIE_SAMESITE = None
@@ -164,6 +172,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
