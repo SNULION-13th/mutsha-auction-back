@@ -106,7 +106,6 @@ class PayApproveView(APIView):
             userprofile.remaining_points += added_points
             new_points = userprofile.remaining_points
             
-            
             pay_hist.save()
             userprofile.save()
             
