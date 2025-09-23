@@ -13,10 +13,6 @@ from .models import UserProfile
 from django.conf import settings
 
 
-import requests
-kakao_client_id = settings.KAKAO_SECRET_KEY
-kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
-
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
 from .request_serializers import SignUpRequestSerializer, SignInRequestSerializer, TokenRefreshRequestSerializer, UserProfileUpdateRequestSerializer
 
