@@ -23,8 +23,8 @@ def set_token_on_response_cookie(user, status_code) -> Response:
     user_profile = UserProfile.objects.get(user=user)
     serialized_data = UserProfileSerializer(user_profile).data
     res = Response(serialized_data, status=status_code)
-    res.set_cookie("refresh_token", value=str(token), httponly=False, samesite="Lax", secure=False, domain="localhost")
-    res.set_cookie("access_token", value=str(token.access_token), httponly=False, samesite="Lax", secure=False, domain="localhost")
+    res.set_cookie("refresh_token", value=str(token), httponly=False, samesite="Lax", secure=False)
+    res.set_cookie("access_token", value=str(token.access_token), httponly=False, samesite="Lax", secure=False)
     return res
 
 
@@ -90,7 +90,7 @@ class TokenRefreshView(APIView):
             )
         new_access_token = str(RefreshToken(refresh_token).access_token)
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
-        response.set_cookie("access_token", value=str(new_access_token), httponly=False, samesite="None", secure=False)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=False, samesite="Lax", secure=False)
         return response
 
 
