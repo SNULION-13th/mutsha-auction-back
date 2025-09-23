@@ -106,13 +106,9 @@ class PayApproveView(APIView):
             userprofile.remaining_points += added_points
             new_points = userprofile.remaining_points
             
-            print(f"결제 승인 완료 - 사용자: {user.username}")
-            print(f"포인트 변경: {old_points} -> {new_points} (+{added_points})")
             
             pay_hist.save()
             userprofile.save()
-            
-            print(f"데이터베이스 저장 완료")
             
             # 응답에 포인트 정보 추가
             response_data = response.json()
