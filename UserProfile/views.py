@@ -236,13 +236,6 @@ class CheckUsernameView(APIView):
             return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"message": "Username is available"}, status=status.HTTP_200_OK)
 
-### 추후 삭제 예정
-class KakaoSignInView(APIView):
-    def get(self, request):
-        request_uri = f"https://kauth.kakao.com/oauth/authorize?client_id={kakao_client_id}&redirect_uri={kakao_redirect_uri}&response_type=code"
-        return Response(request_uri, status=status.HTTP_200_OK)
-
-
 class KakaoSignInCallbackView(APIView):
     @swagger_auto_schema(
         operation_id="카카오 로그인",
