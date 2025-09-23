@@ -1,8 +1,4 @@
 from django.shortcuts import render
-
-# Create your views here.
-
-# Create your views here.
 from django.shortcuts import render
 from rest_framework import status
 from rest_framework.views import APIView
@@ -52,9 +48,8 @@ class PayReadyView(APIView):
         response_data = response.json()
 
         if response.status_code == 200:
-            # item_name에서 포인트 수량 추출 (예: "30 잔" -> 30)
             item_name = request.data['item_name']
-            point_amount = int(item_name.split()[0])  # "30 잔"에서 "30" 추출
+            point_amount = int(item_name)
             
             Payment.objects.create(
                 tid=response_data['tid'],
@@ -109,7 +104,6 @@ class PayApproveView(APIView):
             pay_hist.save()
             userprofile.save()
             
-            # 응답에 포인트 정보 추가
             response_data = response.json()
             response_data['point_info'] = {
                 'old_points': old_points,
