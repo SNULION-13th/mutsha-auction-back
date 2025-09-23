@@ -20,6 +20,7 @@ from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer,
 from django.conf import settings
 
 pay_key = settings.KAKAO_PAY_KEY
+cid = settings.KAKAO_PAY_CID
 
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'

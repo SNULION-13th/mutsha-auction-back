@@ -35,6 +35,7 @@ SECRET_KEY = env('SECRET_KEY')
 KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY')
 KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
 KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -187,6 +188,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': ( 
+        'UserProfile.authentication.CookieJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication', 
     )
 }
@@ -202,6 +204,8 @@ SIMPLE_JWT = {  'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
                 'ACCESS_TOKEN': 'access_token', 
                 'REFRESH_TOKEN': 'refresh_token', 
                 "JWT_COOKIE_SAMESITE": "None",
+                'JWT_AUTH_COOKIE': 'access_token',
+                'JWT_REFRESH_COOKIE': 'refresh_token',
             }
 
 SWAGGER_SETTINGS = {

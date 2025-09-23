@@ -12,7 +12,7 @@ from drf_yasg import openapi
 from .models import UserProfile
 import requests
 from django.conf import settings
-kakao_secret = settings.KAKAO_SECRET_KEY
+kakao_client_id = settings.KAKAO_SECRET_KEY
 kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
@@ -23,8 +23,8 @@ def set_token_on_response_cookie(user, status_code) -> Response:
     user_profile = UserProfile.objects.get(user=user)
     serialized_data = UserProfileSerializer(user_profile).data
     res = Response(serialized_data, status=status_code)
-    res.set_cookie("refresh_token", value=str(token))
-    res.set_cookie("access_token", value=str(token.access_token))
+    res.set_cookie("refresh_token", value=str(token), httponly=False, samesite="Lax", secure=False, domain="localhost")
+    res.set_cookie("access_token", value=str(token.access_token), httponly=False, samesite="Lax", secure=False, domain="localhost")
     return res
 
 
@@ -90,7 +90,7 @@ class TokenRefreshView(APIView):
             )
         new_access_token = str(RefreshToken(refresh_token).access_token)
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
-        response.set_cookie("access_token", value=str(new_access_token), httponly=True)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=False, samesite="None", secure=False)
         return response
 
 
@@ -239,7 +239,7 @@ class CheckUsernameView(APIView):
 ### 추후 삭제 예정
 class KakaoSignInView(APIView):
     def get(self, request):
-        request_uri = f"https://kauth.kakao.com/oauth/authorize?client_id={kakao_secret}&redirect_uri={kakao_redirect_uri}&response_type=code"
+        request_uri = f"https://kauth.kakao.com/oauth/authorize?client_id={kakao_client_id}&redirect_uri={kakao_redirect_uri}&response_type=code"
         return Response(request_uri, status=status.HTTP_200_OK)
 
 
@@ -253,10 +253,16 @@ class KakaoSignInCallbackView(APIView):
         request_body=None,
         responses={200: UserProfileSerializer},
     )
+    def get(self, request):
+        return self._process_kakao_login(request)
+    
     def post(self, request):
+        return self._process_kakao_login(request)
+    
+    def _process_kakao_login(self, request):
         ### 프론트로 들어온 code를 받아서 카카오로부터 access_token을 받아옴
         code = request.GET.get("code")
-        request_uri = f"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={kakao_secret}&redirect_uri={kakao_redirect_uri}&code={code}"
+        request_uri = f"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={kakao_client_id}&redirect_uri={kakao_redirect_uri}&code={code}"
         response = requests.post(request_uri)
         access_token = response.json().get("access_token")
 
