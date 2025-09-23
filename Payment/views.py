@@ -1,8 +1,4 @@
 from django.shortcuts import render
-
-# Create your views here.
-
-# Create your views here.
 from django.shortcuts import render
 from rest_framework import status
 from rest_framework.views import APIView
@@ -20,6 +16,7 @@ from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer,
 from django.conf import settings
 
 pay_key = settings.KAKAO_PAY_KEY
+cid = settings.KAKAO_PAY_CID
 
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
@@ -51,11 +48,14 @@ class PayReadyView(APIView):
         response_data = response.json()
 
         if response.status_code == 200:
+            item_name = request.data['item_name']
+            point_amount = int(item_name)
+            
             Payment.objects.create(
                 tid=response_data['tid'],
                 partner_order_id=request.data['partner_order_id'],
                 partner_user_id=request.data['partner_user_id'],
-                point=request.data['item_name'],
+                point=point_amount,
                 price=request.data['total_amount'],
                 user=user
             )
@@ -94,8 +94,22 @@ class PayApproveView(APIView):
         if response.status_code == 200:
             pay_hist.pay_status = 'approved'
             userprofile = UserProfile.objects.get(user=user)
-            userprofile.remaining_points+= int(pay_hist.point)
+            
+            # 포인트 업데이트 전후 로깅
+            old_points = userprofile.remaining_points
+            added_points = int(pay_hist.point)
+            userprofile.remaining_points += added_points
+            new_points = userprofile.remaining_points
+            
             pay_hist.save()
             userprofile.save()
+            
+            response_data = response.json()
+            response_data['point_info'] = {
+                'old_points': old_points,
+                'added_points': added_points,
+                'new_points': new_points
+            }
+            return Response(response_data, status=response.status_code)
 
         return Response(response.json(), status=response.status_code)
