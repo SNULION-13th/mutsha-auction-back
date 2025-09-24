@@ -20,6 +20,7 @@ cid = settings.KAKAO_PAY_CID
 
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
+payment_detail_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
 
 pay_header = {
     'Content-Type': 'application/json',
@@ -92,7 +93,37 @@ class PayApproveView(APIView):
         response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
 
         if response.status_code == 200:
+            response_data = response.json()
+            
+            # 카카오페이 API 응답에서 상세 정보 추출하여 DB에 저장
             pay_hist.pay_status = 'approved'
+            pay_hist.item_name = response_data.get('item_name', '')
+            pay_hist.payment_method_type = response_data.get('payment_method_type', '')
+            pay_hist.aid = response_data.get('aid', '')
+            pay_hist.cid = response_data.get('cid', '')
+            pay_hist.sid = response_data.get('sid', '')
+            pay_hist.status = response_data.get('status', '')
+            pay_hist.quantity = response_data.get('quantity', 1)
+            pay_hist.vat_amount = response_data.get('amount', {}).get('vat_amount', 0)
+            pay_hist.tax_free_amount = response_data.get('amount', {}).get('tax_free_amount', 0)
+            pay_hist.payload = response_data.get('payload', '')
+            pay_hist.card_info = response_data.get('card_info', {})
+            
+            # 날짜 필드 처리
+            if response_data.get('created_at'):
+                from datetime import datetime
+                try:
+                    pay_hist.created_at = datetime.fromisoformat(response_data['created_at'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            if response_data.get('approved_at'):
+                from datetime import datetime
+                try:
+                    pay_hist.approved_at = datetime.fromisoformat(response_data['approved_at'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
             userprofile = UserProfile.objects.get(user=user)
             
             # 포인트 업데이트 전후 로깅
@@ -104,7 +135,6 @@ class PayApproveView(APIView):
             pay_hist.save()
             userprofile.save()
             
-            response_data = response.json()
             response_data['point_info'] = {
                 'old_points': old_points,
                 'added_points': added_points,
@@ -113,3 +143,65 @@ class PayApproveView(APIView):
             return Response(response_data, status=response.status_code)
 
         return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryView(APIView):
+    @swagger_auto_schema(
+        operation_id="카카오페이 결제 내역 조회 API",
+        operation_description="사용자의 카카오페이 결제 내역을 조회합니다.",
+        responses={200: "결제 내역 목록", 401: "please signin."},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
+    )
+    def get(self, request):
+        user = request.user
+
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 사용자의 결제 내역을 DB에서 가져오기
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-id')
+        
+        payment_history = []
+        for i, payment in enumerate(payments):
+            
+            # 모든 결제에 대해 카카오페이 API 호출
+            try:
+                # 카카오페이 주문 조회 API는 POST 방식
+                detail_data = {
+                    'cid': cid,
+                    'tid': payment.tid
+                }
+                detail_data = json.dumps(detail_data)
+
+                
+                response = requests.post(payment_detail_url, headers=pay_header, data=detail_data)
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+    
+                    
+                    payment_info = {
+                        'tid': payment.tid,
+                        'item_name': response_data.get('item_name', ''),
+                        'amount': response_data.get('amount', {}).get('total', 0),
+                        'payment_method_type': response_data.get('payment_method_type', ''),
+                        'approved_at': response_data.get('approved_at', ''),
+                        'status': response_data.get('status', ''),
+                        'point': payment.point,
+                        'price': payment.price
+                    }
+                    payment_history.append(payment_info)
+            except Exception as e:
+                # API 호출 실패 시 DB 데이터만으로 구성
+                payment_info = {
+                    'tid': payment.tid,
+                    'item_name': f'{payment.point} 포인트',
+                    'amount': payment.price,
+                    'payment_method_type': '카카오페이',
+                    'approved_at': payment.approved_at.isoformat() if payment.approved_at else '',
+                    'status': 'DONE',
+                    'point': payment.point,
+                    'price': payment.price
+                }
+                payment_history.append(payment_info)
+  
+        return Response(payment_history, status=status.HTTP_200_OK)
