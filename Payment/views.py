@@ -100,34 +100,8 @@ class PayApproveView(APIView):
             # 이미 승인된 결제인지 확인
             was_already_approved = pay_hist.pay_status == 'approved'
             
-            # 카카오페이 API 응답에서 상세 정보 추출하여 DB에 저장
+            # 결제 상태만 업데이트 (모델에 있는 필드만)
             pay_hist.pay_status = 'approved'
-            pay_hist.item_name = response_data.get('item_name', '')
-            pay_hist.payment_method_type = response_data.get('payment_method_type', '')
-            pay_hist.aid = response_data.get('aid', '')
-            pay_hist.cid = response_data.get('cid', '')
-            pay_hist.sid = response_data.get('sid', '')
-            pay_hist.status = response_data.get('status', '')
-            pay_hist.quantity = response_data.get('quantity', 1)
-            pay_hist.vat_amount = response_data.get('amount', {}).get('vat_amount', 0)
-            pay_hist.tax_free_amount = response_data.get('amount', {}).get('tax_free_amount', 0)
-            pay_hist.payload = response_data.get('payload', '')
-            pay_hist.card_info = response_data.get('card_info', {})
-            
-            # 날짜 필드 처리
-            if response_data.get('created_at'):
-                from datetime import datetime
-                try:
-                    pay_hist.created_at = datetime.fromisoformat(response_data['created_at'].replace('Z', '+00:00'))
-                except:
-                    pass
-            
-            if response_data.get('approved_at'):
-                from datetime import datetime
-                try:
-                    pay_hist.approved_at = datetime.fromisoformat(response_data['approved_at'].replace('Z', '+00:00'))
-                except:
-                    pass
             
             # 원자적 트랜잭션으로 중복 처리 방지
             with transaction.atomic():
