@@ -1,5 +1,3 @@
-from django.shortcuts import render
-from django.shortcuts import render
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -15,7 +13,8 @@ from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer,
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F
+from django.db import IntegrityError, OperationalError
+import time
 
 pay_key = settings.KAKAO_PAY_KEY
 cid = settings.KAKAO_PAY_CID
@@ -83,7 +82,25 @@ class PayApproveView(APIView):
 
         pg_token = request.data['pg_token']
         tid = request.data['tid']
-        pay_hist = Payment.objects.get(tid=tid)
+        
+        try:
+            pay_hist = Payment.objects.get(tid=tid)
+        except Payment.DoesNotExist:
+            return Response(
+                {"detail": "결제 정보를 찾을 수 없습니다."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 이미 승인된 결제인지 먼저 확인
+        if pay_hist.pay_status == 'approved':
+            return Response(
+                {"detail": "이미 처리된 결제입니다.", "point_info": {
+                    'old_points': 0,
+                    'added_points': 0,
+                    'new_points': 0
+                }}, 
+                status=status.HTTP_200_OK
+            )
         pay_data = {
             'cid': cid,
             'tid': tid,
@@ -100,44 +117,66 @@ class PayApproveView(APIView):
             # 이미 승인된 결제인지 확인
             was_already_approved = pay_hist.pay_status == 'approved'
             
-            # 결제 상태만 업데이트 (모델에 있는 필드만)
-            pay_hist.pay_status = 'approved'
+            # 원자적 트랜잭션으로 중복 처리 방지 (재시도 로직 포함)
+            max_retries = 3
+            retry_delay = 0.1  # 100ms
             
-            # 원자적 트랜잭션으로 중복 처리 방지
-            with transaction.atomic():
-                # select_for_update로 동시성 제어
-                userprofile = UserProfile.objects.select_for_update().get(user=user)
-                
-                # 포인트 업데이트 (이미 승인된 결제가 아닌 경우에만)
-                point_info = {
-                    'old_points': userprofile.remaining_points,
-                    'added_points': 0,
-                    'new_points': userprofile.remaining_points
-                }
-                
-                if not was_already_approved:
-                    # 포인트 업데이트 전후 로깅
-                    old_points = userprofile.remaining_points
-                    added_points = int(pay_hist.point)
+            for attempt in range(max_retries):
+                try:
+                    with transaction.atomic():
+                        # select_for_update로 동시성 제어
+                        userprofile = UserProfile.objects.select_for_update().get(user=user)
+                        
+                        # 포인트 업데이트 (이미 승인된 결제가 아닌 경우에만)
+                        point_info = {
+                            'old_points': userprofile.remaining_points,
+                            'added_points': 0,
+                            'new_points': userprofile.remaining_points
+                        }
+                        
+                        if not was_already_approved:
+                            # 포인트 업데이트 전후 로깅
+                            old_points = userprofile.remaining_points
+                            added_points = int(pay_hist.point)
+                            
+                            # 직접 계산하여 업데이트 (F() 표현식 대신)
+                            new_points = old_points + added_points
+                            userprofile.remaining_points = new_points
+                            userprofile.save()
+                            
+                            point_info = {
+                                'old_points': old_points,
+                                'added_points': added_points,
+                                'new_points': new_points
+                            }
+                        
+                        # 결제 상태 업데이트
+                        pay_hist.pay_status = 'approved'
+                        pay_hist.save()
                     
-                    # F() 표현식을 사용하여 원자적 업데이트
-                    userprofile.remaining_points = F('remaining_points') + added_points
-                    userprofile.save()
+                    response_data['point_info'] = point_info
+                    return Response(response_data, status=response.status_code)
                     
-                    # 실제 값으로 업데이트
-                    userprofile.refresh_from_db()
-                    new_points = userprofile.remaining_points
-                    
-                    point_info = {
-                        'old_points': old_points,
-                        'added_points': added_points,
-                        'new_points': new_points
-                    }
-                
-                pay_hist.save()
-            
-            response_data['point_info'] = point_info
-            return Response(response_data, status=response.status_code)
+                except (OperationalError, IntegrityError) as e:
+                    if attempt < max_retries - 1:
+                        # 데이터베이스 잠금 오류 시 재시도
+                        print(f"Database lock error (attempt {attempt + 1}): {e}")
+                        time.sleep(retry_delay * (2 ** attempt))  # 지수 백오프
+                        continue
+                    else:
+                        # 최대 재시도 횟수 초과
+                        print(f"Database error after {max_retries} attempts: {e}")
+                        return Response(
+                            {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                        )
+                except Exception as e:
+                    # 기타 예상치 못한 오류
+                    print(f"Unexpected error in payment approval: {e}")
+                    return Response(
+                        {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
 
         return Response(response.json(), status=response.status_code)
 
