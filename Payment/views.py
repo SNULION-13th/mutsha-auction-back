@@ -14,6 +14,8 @@ from drf_yasg import openapi
 from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer
 
 from django.conf import settings
+from django.db import transaction
+from django.db.models import F
 
 pay_key = settings.KAKAO_PAY_KEY
 cid = settings.KAKAO_PAY_CID
@@ -95,6 +97,9 @@ class PayApproveView(APIView):
         if response.status_code == 200:
             response_data = response.json()
             
+            # 이미 승인된 결제인지 확인
+            was_already_approved = pay_hist.pay_status == 'approved'
+            
             # 카카오페이 API 응답에서 상세 정보 추출하여 DB에 저장
             pay_hist.pay_status = 'approved'
             pay_hist.item_name = response_data.get('item_name', '')
@@ -124,22 +129,40 @@ class PayApproveView(APIView):
                 except:
                     pass
             
-            userprofile = UserProfile.objects.get(user=user)
+            # 원자적 트랜잭션으로 중복 처리 방지
+            with transaction.atomic():
+                # select_for_update로 동시성 제어
+                userprofile = UserProfile.objects.select_for_update().get(user=user)
+                
+                # 포인트 업데이트 (이미 승인된 결제가 아닌 경우에만)
+                point_info = {
+                    'old_points': userprofile.remaining_points,
+                    'added_points': 0,
+                    'new_points': userprofile.remaining_points
+                }
+                
+                if not was_already_approved:
+                    # 포인트 업데이트 전후 로깅
+                    old_points = userprofile.remaining_points
+                    added_points = int(pay_hist.point)
+                    
+                    # F() 표현식을 사용하여 원자적 업데이트
+                    userprofile.remaining_points = F('remaining_points') + added_points
+                    userprofile.save()
+                    
+                    # 실제 값으로 업데이트
+                    userprofile.refresh_from_db()
+                    new_points = userprofile.remaining_points
+                    
+                    point_info = {
+                        'old_points': old_points,
+                        'added_points': added_points,
+                        'new_points': new_points
+                    }
+                
+                pay_hist.save()
             
-            # 포인트 업데이트 전후 로깅
-            old_points = userprofile.remaining_points
-            added_points = int(pay_hist.point)
-            userprofile.remaining_points += added_points
-            new_points = userprofile.remaining_points
-            
-            pay_hist.save()
-            userprofile.save()
-            
-            response_data['point_info'] = {
-                'old_points': old_points,
-                'added_points': added_points,
-                'new_points': new_points
-            }
+            response_data['point_info'] = point_info
             return Response(response_data, status=response.status_code)
 
         return Response(response.json(), status=response.status_code)
