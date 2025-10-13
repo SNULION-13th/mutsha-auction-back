@@ -46,6 +46,7 @@ class AuctionListView(APIView):
         responses={200: AuctionListSerializer(many=True)},
     )
     def get(self, request):
+        Auction.objects.filter(status='active', end_time__lt=timezone.now()).update(status='ended')
         auctions = Auction.objects.all()
         
         # 상태 필터링

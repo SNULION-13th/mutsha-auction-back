@@ -137,7 +137,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
         'OPTIONS': {
             'timeout': 30,  # 데이터베이스 잠금 대기 시간 (초)
-            'init_command': "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA cache_size=10000; PRAGMA temp_store=MEMORY;",
         }
     }
 }
