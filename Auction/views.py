@@ -7,7 +7,10 @@ from django.db.models import Q
 import random
 
 from .models import Auction, Bid
-from .serializers import AuctionSerializer, AuctionListSerializer, AuctionCreateSerializer, BidSerializer
+from .serializers import (
+    AuctionSerializer, AuctionListSerializer, AuctionCreateSerializer, 
+    BidSerializer, MyAuctionHistorySerializer, MyBidHistorySerializer
+)
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
@@ -46,7 +49,16 @@ class AuctionListView(APIView):
         responses={200: AuctionListSerializer(many=True)},
     )
     def get(self, request):
-        Auction.objects.filter(status='active', end_time__lt=timezone.now()).update(status='ended')
+        # 종료된 경매 처리
+        ended_auctions = Auction.objects.filter(status='active', end_time__lt=timezone.now())
+        for auction in ended_auctions:
+            auction.status = 'ended'
+            # 최고 입찰자를 winner로 설정
+            highest_bid = auction.bids.order_by('-amount').first()
+            if highest_bid:
+                auction.winner = highest_bid.bidder
+            auction.save()
+        
         auctions = Auction.objects.all()
         
         # 상태 필터링
@@ -80,6 +92,15 @@ class AuctionDetailView(APIView):
     def get(self, request, auction_id):
         try:
             auction = Auction.objects.get(id=auction_id)
+            
+            # 경매가 종료되었는지 확인하고 winner 설정
+            if auction.status == 'active' and auction.end_time < timezone.now():
+                auction.status = 'ended'
+                highest_bid = auction.bids.order_by('-amount').first()
+                if highest_bid:
+                    auction.winner = highest_bid.bidder
+                auction.save()
+            
             serializer = AuctionSerializer(auction, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Auction.DoesNotExist:
@@ -163,3 +184,36 @@ class BidCreateView(APIView):
                 {"detail": "경매를 찾을 수 없습니다."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class MyAuctionHistoryView(APIView):
+    """내가 등록한 경매 히스토리 API"""
+    
+    @swagger_auto_schema(
+        operation_id="내가 등록한 경매 히스토리",
+        operation_description="로그인한 사용자가 판매자로 등록한 경매 목록을 조회합니다.",
+        responses={200: MyAuctionHistorySerializer(many=True)},
+    )
+    def get(self, request):
+        # 로그인한 사용자가 판매자인 경매들
+        my_auctions = Auction.objects.filter(seller=request.user).order_by('-created_at')
+        serializer = MyAuctionHistorySerializer(my_auctions, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class MyBidHistoryView(APIView):
+    """내가 입찰한 경매 히스토리 API"""
+    
+    @swagger_auto_schema(
+        operation_id="내가 입찰한 경매 히스토리",
+        operation_description="로그인한 사용자가 입찰한 경매 목록을 조회합니다.",
+        responses={200: MyBidHistorySerializer(many=True)},
+    )
+    def get(self, request):
+        # 로그인한 사용자가 입찰한 경매들
+        # Bid를 통해 사용자가 입찰한 경매의 ID를 가져옴
+        auction_ids = Bid.objects.filter(bidder=request.user).values_list('auction_id', flat=True).distinct()
+        my_bid_auctions = Auction.objects.filter(id__in=auction_ids).order_by('-updated_at')
+        
+        serializer = MyBidHistorySerializer(my_bid_auctions, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
