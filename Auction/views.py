@@ -117,13 +117,18 @@ class AuctionCreateView(APIView):
         operation_id="경매 생성",
         operation_description="새로운 경매를 생성합니다.",
         request_body=AuctionCreateSerializer,
-        responses={201: AuctionSerializer, 400: "Bad Request"},
+        responses={201: AuctionSerializer, 400: "Bad Request", 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         serializer = AuctionCreateSerializer(data=request.data)
         if serializer.is_valid():
             # 현재 로그인한 사용자를 판매자로 설정
-            auction = serializer.save(seller=request.user)
+            auction = serializer.save(seller=user)
             response_serializer = AuctionSerializer(auction)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -144,9 +149,14 @@ class BidCreateView(APIView):
                 )
             },
         ),
-        responses={201: BidSerializer, 400: "Bad Request", 404: "경매를 찾을 수 없습니다."},
+        responses={201: BidSerializer, 400: "Bad Request", 401: "please signin", 404: "경매를 찾을 수 없습니다."},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request, auction_id):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         try:
             auction = Auction.objects.get(id=auction_id)
             
@@ -168,7 +178,7 @@ class BidCreateView(APIView):
             # 입찰 생성
             bid = Bid.objects.create(
                 auction=auction,
-                bidder=request.user,
+                bidder=user,
                 amount=amount
             )
             
@@ -192,11 +202,16 @@ class MyAuctionHistoryView(APIView):
     @swagger_auto_schema(
         operation_id="내가 등록한 경매 히스토리",
         operation_description="로그인한 사용자가 판매자로 등록한 경매 목록을 조회합니다.",
-        responses={200: MyAuctionHistorySerializer(many=True)},
+        responses={200: MyAuctionHistorySerializer(many=True), 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         # 로그인한 사용자가 판매자인 경매들
-        my_auctions = Auction.objects.filter(seller=request.user).order_by('-created_at')
+        my_auctions = Auction.objects.filter(seller=user).order_by('-created_at')
         serializer = MyAuctionHistorySerializer(my_auctions, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -207,12 +222,17 @@ class MyBidHistoryView(APIView):
     @swagger_auto_schema(
         operation_id="내가 입찰한 경매 히스토리",
         operation_description="로그인한 사용자가 입찰한 경매 목록을 조회합니다.",
-        responses={200: MyBidHistorySerializer(many=True)},
+        responses={200: MyBidHistorySerializer(many=True), 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         # 로그인한 사용자가 입찰한 경매들
         # Bid를 통해 사용자가 입찰한 경매의 ID를 가져옴
-        auction_ids = Bid.objects.filter(bidder=request.user).values_list('auction_id', flat=True).distinct()
+        auction_ids = Bid.objects.filter(bidder=user).values_list('auction_id', flat=True).distinct()
         my_bid_auctions = Auction.objects.filter(id__in=auction_ids).order_by('-updated_at')
         
         serializer = MyBidHistorySerializer(my_bid_auctions, many=True, context={'request': request})
