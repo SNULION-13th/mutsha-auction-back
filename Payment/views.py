@@ -35,24 +35,6 @@ pay_header = {
 
 class PayReadyView(APIView):
     def post(self, request):
-		    #### 1
-        pay_data = request.data
-
-				#### 2
-        user = request.user
-        if not user.is_authenticated:
-            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        #### 3
-        pay_data['cid'] = cid
-        pay_data = json.dumps(pay_data)
-
-				#### 4
-        response = requests.post(payready_url, headers=pay_header, data=pay_data)
-        response_data = response.json()
-
-class PayReadyView(APIView):
-    def post(self, request):
         pay_data = request.data
 
         user = request.user
@@ -80,6 +62,7 @@ class PayReadyView(APIView):
             )
 
         return Response(response.json(), status=response.status_code)
+
 class PayApproveView(APIView):
     def post(self, request):
         user = request.user
@@ -99,7 +82,6 @@ class PayApproveView(APIView):
         }
         pay_data = json.dumps(pay_data)
         response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
-
 				
         if response.status_code == 200:
             response_data = response.json()
@@ -169,4 +151,3 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
-        
