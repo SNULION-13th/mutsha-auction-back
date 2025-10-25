@@ -154,4 +154,64 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 사용자의 결제 내역 조회
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-id')
+        
+        payment_history = []
+        for payment in payments:
+            try:
+                # 카카오페이 주문 조회 API 호출
+                order_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
+                order_data = {
+                    'cid': cid,
+                    'tid': payment.tid
+                }
+                order_response = requests.post(order_url, headers=pay_header, data=json.dumps(order_data))
+                
+                if order_response.status_code == 200:
+                    order_data = order_response.json()
+                    payment_history.append({
+                        'id': payment.id,
+                        'tid': payment.tid,
+                        'item_name': order_data.get('item_name', '포인트 충전'),
+                        'amount': order_data.get('amount', {}).get('total', payment.price),
+                        'payment_method_type': order_data.get('payment_method_type', '카드'),
+                        'approved_at': order_data.get('approved_at', payment.partner_order_id),
+                        'point': payment.point,
+                        'price': payment.price
+                    })
+                else:
+                    # API 호출 실패 시 기본 정보만 제공
+                    payment_history.append({
+                        'id': payment.id,
+                        'tid': payment.tid,
+                        'item_name': f'{payment.point}포인트',
+                        'amount': payment.price,
+                        'payment_method_type': '카드',
+                        'approved_at': payment.partner_order_id,
+                        'point': payment.point,
+                        'price': payment.price
+                    })
+            except Exception as e:
+                print(f"Error fetching payment details for tid {payment.tid}: {e}")
+                # 오류 발생 시 기본 정보만 제공
+                payment_history.append({
+                    'id': payment.id,
+                    'tid': payment.tid,
+                    'item_name': f'{payment.point}포인트',
+                    'amount': payment.price,
+                    'payment_method_type': '카드',
+                    'approved_at': payment.partner_order_id,
+                    'point': payment.point,
+                    'price': payment.price
+                })
+        
+        return Response(payment_history, status=status.HTTP_200_OK)
         
