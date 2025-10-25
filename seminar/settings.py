@@ -31,6 +31,12 @@ environ.Env.read_env(
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY') 
+KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
+
+KAKAO_PAY_KEY='DEV4BEF853D9030CD4598F6E5524FF06F27E257F'
+KAKAO_PAY_CID='TC0ONETIME'
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -58,6 +64,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Auction',
+    'Payment',
 ]
 
 MIDDLEWARE = [
