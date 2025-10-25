@@ -11,6 +11,7 @@ import time
 import requests
 import json
 
+
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
@@ -159,4 +160,78 @@ class PayApproveView(APIView):
                 )
 
     return Response(response.json(), status=response.status_code)
+
+class PayOrderDetailView(APIView):
+    """
+    GET /payment/order/?tid=...   (프로젝트 루트 url include 경로에 따라 /api/payment/order/ 일 수도 있음)
+    카카오페이 '주문 조회' API를 서버에서 호출하여,
+    과제에 필요한 필드를 추려서 반환.
+    """
+    def get(self, request):
+        tid = request.GET.get("tid")
+        if not tid:
+            return Response({"error": "tid is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_url = "https://open-api.kakaopay.com/online/v1/payment/order"
+        body = json.dumps({"cid": cid, "tid": tid})
+
+        try:
+            resp = requests.post(order_url, headers=pay_header, data=body, timeout=10)
+        except requests.RequestException as e:
+            return Response({"error": "kakaopay request failed", "detail": str(e)}, status=502)
+
+        if resp.status_code != 200:
+            # 카카오 응답 원문도 같이 반환 -> 디버깅 편함
+            return Response({"error": "kakaopay order inquiry failed",
+                             "status": resp.status_code,
+                             "detail": resp.text}, status=resp.status_code)
+
+        data = resp.json()
+
+        # amount는 객체(total/discount 등)일 수 있어서 그대로와 total 둘 다 제공
+        payload = {
+            "tid": data.get("tid"),
+            "item_name": data.get("item_name"),
+            "amount": data.get("amount"),
+            "amount_total": (data.get("amount") or {}).get("total"),
+            "payment_method_type": data.get("payment_method_type"),
+            "approved_at": data.get("approved_at"),
+        }
+        return Response(payload, status=200)
+    
+
+class PaymentReceiptView(APIView):
+    """
+    GET /payment/receipt/?tid=...  
+    tid로 결제 상세 정보를 반환 (카카오페이 주문 조회 API 사용)
+    """
+    def get(self, request):
+        tid = request.GET.get("tid")
+        if not tid:
+            return Response({"error": "tid is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_url = "https://open-api.kakaopay.com/online/v1/payment/order"
+        body = json.dumps({"cid": cid, "tid": tid})
+
+        try:
+            resp = requests.post(order_url, headers=pay_header, data=body, timeout=10)
+        except requests.RequestException as e:
+            return Response({"error": "kakaopay request failed", "detail": str(e)}, status=502)
+
+        if resp.status_code != 200:
+            return Response(
+                {"error": "kakaopay order inquiry failed", "detail": resp.text},
+                status=resp.status_code,
+            )
+
+        data = resp.json()
+        payload = {
+            "tid": data.get("tid"),
+            "item_name": data.get("item_name"),
+            "amount": data.get("amount"),
+            "amount_total": (data.get("amount") or {}).get("total"),
+            "payment_method_type": data.get("payment_method_type"),
+            "approved_at": data.get("approved_at"),
+        }
+        return Response(payload, status=200)
     
