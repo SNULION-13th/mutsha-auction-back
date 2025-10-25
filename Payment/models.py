@@ -15,3 +15,6 @@ class Payment(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="pay_buyer", null=True
     )
+    item_name = models.CharField(max_length=100, default="default_item")
+    payment_method_type = models.CharField(max_length=100, default="default_method")
+    approved_at = models.DateTimeField(null=True, blank=True)

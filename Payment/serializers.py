@@ -2,6 +2,13 @@ from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
 
 
+class OrderSerializer(serializers.Serializer):
+    item_name = serializers.CharField()
+    price = serializers.CharField()
+    payment_method_type = serializers.CharField()
+    approved_at = serializers.DateTimeField()
+
+
 class PayReadyRequestSerializer(serializers.Serializer):
     partner_order_id = serializers.CharField()
     partner_user_id = serializers.CharField()

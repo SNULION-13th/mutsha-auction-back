@@ -15,6 +15,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 from .serializers import (
+    OrderSerializer,
     PayReadyRequestSerializer,
     PayApproveRequestSerializer,
     PayReadyResponseSerializer,
@@ -32,6 +33,7 @@ cid = settings.KAKAO_PAY_CID
 payready_url = "https://open-api.kakaopay.com/online/v1/payment/ready"
 ### 이건 나중에 결제 승인 API 요청시 사용될 URL !
 payapprove_url = "https://open-api.kakaopay.com/online/v1/payment/approve"
+payorder_url = "https://open-api.kakaopay.com/online/v1/payment/order"
 
 pay_header = {
     "Content-Type": "application/json",
@@ -90,8 +92,18 @@ class PayApproveView(APIView):
             "partner_user_id": pay_hist.partner_user_id,
             "pg_token": pg_token,
         }
+
         pay_data = json.dumps(pay_data)
+
+        order_data = {
+            "cid": cid,
+            "tid": tid,
+        }
+        order_data = json.dumps(order_data)
         response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
+        order_response = requests.post(
+            payorder_url, headers=pay_header, data=order_data
+        )
 
         if response.status_code == 200:
             response_data = response.json()
@@ -138,6 +150,19 @@ class PayApproveView(APIView):
                         pay_hist.pay_status = "approved"
                         pay_hist.save()
 
+                        if order_response.status_code == 200:
+                            order_response.data = order_response.json()
+
+                            payment = Payment.objects.select_for_update().get(tid=tid)
+                            payment.item_name = order_response.data.get("item_name", "")
+                            payment.payment_method_type = order_response.data.get(
+                                "payment_method_type", ""
+                            )
+                            payment.approved_at = order_response.data.get(
+                                "approved_at", ""
+                            )
+                            payment.save()
+
                     response_data["point_info"] = point_info
                     return Response(response_data, status=response.status_code)
 
@@ -167,3 +192,20 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+
+class PayOrderView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response(
+                {"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        qs = Payment.objects.filter(user=user).order_by("-approved_at")
+        data = OrderSerializer(qs, many=True).data
+
+        return Response(
+            data,
+            status=status.HTTP_200_OK,
+        )
