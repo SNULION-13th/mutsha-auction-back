@@ -68,6 +68,8 @@ class PayReadyView(APIView):
                 user=user,
             )
 
+        return Response(response.json(), status=response.status_code)
+
 
 class PayApproveView(APIView):
     def post(self, request):
