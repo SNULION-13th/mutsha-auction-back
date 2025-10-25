@@ -155,19 +155,30 @@ class PayApproveView(APIView):
 
         return Response(response.json(), status=response.status_code)
         
+from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer, PaymentSerializer
+
 class PayOrderView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        payments = Payment.objects.filter(user=user)
+        serializer = PaymentSerializer(payments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def post(self, request):
         user = request.user
         if not user.is_authenticated:
             return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        tid = request.data['tid']
+        tid = request.data.get('tid')
+        if not tid:
+            return Response({"detail": "tid is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         pay_data = {
-            'cid': request.cid,
-            'tid': request.tid,
-            'item_name': pay_hist.item_name,
-
+            'cid': cid,
+            'tid': tid,
         }
         pay_data = json.dumps(pay_data)
         response = requests.post(payorder_url, headers=pay_header, data=pay_data)
