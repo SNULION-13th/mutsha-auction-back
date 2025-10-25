@@ -85,8 +85,8 @@ class PayApproveView(APIView):
         }
         pay_data = json.dumps(pay_data)
         response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
-
-				if response.status_code == 200:
+        
+        if response.status_code == 200:
             response_data = response.json()
             
             # 이미 승인된 결제인지 확인
