@@ -1,5 +1,11 @@
+from .models import Payment
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
+
+class PaymentSerializer(ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = '__all__'
 
 class PayReadyRequestSerializer(serializers.Serializer):
   partner_order_id = serializers.CharField()
