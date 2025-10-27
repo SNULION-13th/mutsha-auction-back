@@ -19,12 +19,10 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
-from django.urls import re_path
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
-from rest_framework.routers import DefaultRouter
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -45,6 +43,7 @@ urlpatterns = [
     path('api/user/', include('UserProfile.urls')),
     path('api/point/', include('Point.urls')),
     path("api/auction/", include("Auction.urls")),
+    path("api/payment/", include("Payment.urls")),
 ]
 
 # 개발 환경에서 미디어 파일 서빙

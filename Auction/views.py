@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.db.models import Q
-import random
 
 from .models import Auction, Bid
 from .serializers import AuctionSerializer, AuctionListSerializer, AuctionCreateSerializer, BidSerializer
