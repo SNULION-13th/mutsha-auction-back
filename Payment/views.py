@@ -27,6 +27,7 @@ cid = settings.KAKAO_PAY_CID
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 ### 이건 나중에 결제 승인 API 요청시 사용될 URL !
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
+payhistory_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
 
 pay_header = {
     'Content-Type': 'application/json',
@@ -160,3 +161,29 @@ class PayApproveView(APIView):
 									)
 
 			return Response(response.json(), status=response.status_code)
+	
+class PayHistoryView(APIView):
+	def post(self, request):
+			user = request.user
+			if not user.is_authenticated:
+					return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+			
+			# 사용자의 모든 결제 기록을 데이터베이스에서 조회
+			pay_hist_list = Payment.objects.filter(user=user)
+			
+			histories = []
+			# 각 결제 기록의 tid를 사용하여 카카오페이 서버에 상세 내역 조회 요청
+			for pay_hist in pay_hist_list:
+					pay_data = {
+							'cid': cid,
+							'tid': pay_hist.tid
+					}
+					pay_data = json.dumps(pay_data)
+					response = requests.post(payhistory_url, headers=pay_header, data=pay_data)
+					
+					# 요청이 성공하면 응답 데이터를 histories 리스트에 추가
+					if response.status_code == 200:
+							histories.append(response.json())
+
+			# 조회된 모든 결제 상세 내역 리스트를 클라이언트에게 반환
+			return Response(histories, status=status.HTTP_200_OK)
