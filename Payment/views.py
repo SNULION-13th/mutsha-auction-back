@@ -164,6 +164,8 @@ class PayApproveView(APIView):
 
         pg_token = request.data.get("pg_token")
         tid = request.data.get("tid")
+        
+        
 
         if not pg_token or not tid:
             print("❌ 결제 승인 요청 실패: pg_token 또는 tid 없음")
@@ -198,6 +200,8 @@ class PayApproveView(APIView):
         print("🟣 KakaoPay 응답 본문:", response.text)
 
         # ✅ 응답이 200이 아닐 경우, KakaoPay의 상세 에러메시지를 클라이언트에도 전달
+        if response.status_code == 400 and "already done" in response.text:
+             return Response({"detail": "이미 승인된 결제입니다."}, status=200)
         if response.status_code != 200:
             try:
                 err_json = response.json()
