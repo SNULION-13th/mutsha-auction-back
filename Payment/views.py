@@ -13,7 +13,7 @@ import json
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer
+from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer, PayOrderRequestSerializer, PayOrderResponseSerializer
 
 ### 등록된 환경변수 정보 가져오기
 from django.conf import settings
@@ -26,6 +26,8 @@ cid = settings.KAKAO_PAY_CID
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 ### 이건 나중에 결제 승인 API 요청시 사용될 URL !
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
+### 결제 내역 조회 API 요청 URL
+payorder_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
 
 pay_header = {
     'Content-Type': 'application/json',
@@ -155,4 +157,60 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+
+class PayOrderView(APIView):
+    """
+    카카오페이 결제내역 조회 API
+    tid를 사용하여 결제 정보를 조회합니다.
+    """
+    @swagger_auto_schema(
+        request_body=PayOrderRequestSerializer,
+        responses={200: PayOrderResponseSerializer}
+    )
+    def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        tid = request.data.get('tid')
+        
+        if not tid:
+            return Response({"detail": "tid is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 해당 tid가 현재 사용자의 결제 내역인지 확인
+        try:
+            payment = Payment.objects.get(tid=tid, user=user)
+        except Payment.DoesNotExist:
+            return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # 카카오페이 결제 내역 조회 API 호출
+        pay_data = {
+            'cid': cid,
+            'tid': tid
+        }
+        pay_data = json.dumps(pay_data)
+        
+        response = requests.post(payorder_url, headers=pay_header, data=pay_data)
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            
+            # 필요한 정보만 추출하여 반환
+            order_info = {
+                'tid': response_data.get('tid'),
+                'item_name': response_data.get('item_name'),
+                'amount': response_data.get('amount', {}),
+                'payment_method_type': response_data.get('payment_method_type'),
+                'approved_at': response_data.get('approved_at'),
+                'status': response_data.get('status'),
+                'partner_order_id': response_data.get('partner_order_id'),
+                'partner_user_id': response_data.get('partner_user_id'),
+                'quantity': response_data.get('quantity'),
+                'cid': response_data.get('cid'),
+            }
+            
+            return Response(order_info, status=status.HTTP_200_OK)
+        else:
+            return Response(response.json(), status=response.status_code)
         

@@ -37,3 +37,19 @@ class PayApproveResponseSerializer(serializers.Serializer):
   created_at = serializers.DateTimeField()
   approved_at = serializers.DateTimeField()
   payload = serializers.CharField()
+
+class PayOrderRequestSerializer(serializers.Serializer):
+  tid = serializers.CharField()
+
+class PayOrderResponseSerializer(serializers.Serializer):
+  tid = serializers.CharField()
+  cid = serializers.CharField()
+  status = serializers.CharField()
+  partner_order_id = serializers.CharField()
+  partner_user_id = serializers.CharField()
+  payment_method_type = serializers.CharField()
+  item_name = serializers.CharField()
+  item_code = serializers.CharField(required=False)
+  quantity = serializers.IntegerField()
+  amount = serializers.DictField()
+  approved_at = serializers.DateTimeField()
