@@ -11,8 +11,45 @@ import time
 import requests
 import json
 
+
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+class PaymentHistoryView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({'detail': 'please signin.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-id')
+        result = []
+        kakao_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'SECRET_KEY {pay_key}'
+        }
+        for pay in payments:
+            data = {
+                'cid': cid,
+                'tid': pay.tid,
+            }
+            try:
+                response = requests.post(kakao_url, headers=headers, data=json.dumps(data), timeout=3)
+                if response.status_code == 200:
+                    response = response.json()
+                else:
+                    response = None
+            except Exception as e:
+                response = None
+
+            result.append({
+                'tid': pay.tid,
+                'item_name': response.get('item_name') if response else str(pay.point),
+                'amount': response.get('amount', {}).get('total') if response and response.get('amount') else int(pay.price),
+                'payment_method_type': response.get('payment_method_type') if response else '',
+                'approved_at': response.get('approved_at') if response else '',
+                'pay_status': pay.pay_status,
+            })
+        return Response(result, status=200)
 
 from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer
 
