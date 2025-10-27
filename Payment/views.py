@@ -14,10 +14,12 @@ import json
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer
+from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer, PaymentHistorySerializer
 
 ### 등록된 환경변수 정보 가져오기
 from django.conf import settings
+
+from rest_framework.permissions import IsAuthenticated
 
 ### 환경변수로 등록된 값 중, KAKAO_PAY_KEY 값 가져와 변수에 넣기
 pay_key = settings.KAKAO_PAY_KEY
@@ -86,6 +88,10 @@ class PayApproveView(APIView):
         ### 🔻 이 부분 추가 ###
         if response.status_code == 200:
             response_data = response.json()
+
+            # 카카오페이 응답에서 결제 내역 조회에 필요한 데이터 추출
+            approved_at = response_data.get('approved_at')
+            payment_method_type = response_data.get('payment_method_type')
             
             # 이미 승인된 결제인지 확인
             was_already_approved = pay_hist.pay_status == 'approved'
@@ -125,6 +131,8 @@ class PayApproveView(APIView):
                         
                         # 결제 상태 업데이트
                         pay_hist.pay_status = 'approved'
+                        pay_hist.payment_method_type = payment_method_type # DB에 저장
+                        pay_hist.approved_at = approved_at # DB에 저장
                         pay_hist.save()
                     
                     response_data['point_info'] = point_info
@@ -152,3 +160,25 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryListView(APIView):
+    # 로그인한 사용자만 접근 가능하도록 설정
+    permission_classes = [IsAuthenticated] 
+
+    @swagger_auto_schema(
+        operation_description="현재 로그인된 사용자의 결제 완료된 내역을 조회합니다.",
+        responses={200: PaymentHistorySerializer(many=True)}
+    )
+    def get(self, request):
+        user = request.user
+        
+        # 로그인한 사용자의 'approved' 상태인 결제 내역만 최신순으로 조회합니다.
+        # approved_at 필드가 null이 아닌, 승인 완료된 레코드만 필터링합니다.
+        history = Payment.objects.filter(
+            user=user, 
+            pay_status='approved',
+            approved_at__isnull=False
+        ).order_by('-approved_at') # 승인 시간을 기준으로 최신순 정렬
+
+        serializer = PaymentHistorySerializer(history, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
