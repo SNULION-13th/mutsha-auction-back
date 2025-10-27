@@ -41,7 +41,6 @@ class PayReadyView(APIView):
         response = requests.post(payready_url, headers=pay_header, data=pay_data)
         response_data = response.json()
 
-				### 🔻 이 부분 추가 ###
         if response.status_code == 200:
             item_name = request.data['item_name']
             point_amount = int(item_name)
@@ -56,6 +55,7 @@ class PayReadyView(APIView):
             )
 
         return Response(response.json(), status=response.status_code)
+    
 class PayApproveView(APIView):
     def post(self, request):
         user = request.user
@@ -76,7 +76,6 @@ class PayApproveView(APIView):
         pay_data = json.dumps(pay_data)
         response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
 
-        ### 🔻 이 부분 추가 ###
         if response.status_code == 200:
             response_data = response.json()
             
@@ -145,4 +144,48 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+    
+### 결제 단건 조회 API 요청 URL 정의하기
+pay_detail_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
+
+class PayDetailView(APIView):
+    """
+    tid를 받아 카카오페이 서버에 결제 상세 정보를 요청하고,
+    요청한 주요 정보를 반환하는 View
+    """
+    def post(self, request):
+        tid = request.data.get("tid") 
         
+        if not tid:
+            return Response({"detail": "tid is required in the request body."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 카카오페이 주문 조회 API에 요청할 데이터
+        pay_data = {
+            'cid': cid,
+            'tid': tid,
+        }
+        
+        try:
+            # API 요청
+            response = requests.post(pay_detail_url, headers=pay_header, data=json.dumps(pay_data))
+            response.raise_for_status()  # 2xx 응답이 아니면 예외 발생
+            
+            response_data = response.json()
+
+            # 필요한 정보만 추출하여 새로운 응답 데이터 구성
+            # 'amount'는 객체이므로 내부의 'total' 값을 사용합니다.
+            result_data = {
+                'item_name': response_data.get('item_name'),
+                'amount': response_data.get('amount', {}).get('total'),
+                'payment_method_type': response_data.get('payment_method_type'),
+                'approved_at': response_data.get('approved_at'),
+            }
+
+            return Response(result_data, status=status.HTTP_200_OK)
+
+        except requests.exceptions.HTTPError as e:
+            # 카카오페이 API로부터 오류 응답을 받았을 경우
+            return Response(e.response.json(), status=e.response.status_code)
+        except Exception as e:
+            # 기타 예외 처리 (네트워크 문제 등)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
