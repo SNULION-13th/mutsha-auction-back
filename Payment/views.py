@@ -14,7 +14,7 @@ import json
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer
+from .serializers import PayReadyRequestSerializer, PayApproveRequestSerializer, PayReadyResponseSerializer, PayApproveResponseSerializer, PaymentHistorySerializer
 
 ### 등록된 환경변수 정보 가져오기
 from django.conf import settings
@@ -129,6 +129,11 @@ class PayApproveView(APIView):
                         
                         # 결제 상태 업데이트
                         pay_hist.pay_status = 'approved'
+                        pay_hist.item_name = response_data.get('item_name')
+                        pay_hist.payment_method_type = response_data.get('payment_method_type')
+                        pay_hist.approved_at = response_data.get('approved_at')
+                        if 'amount' in response_data and 'total' in response_data['amount']:
+                            pay_hist.price = response_data['amount']['total']
                         pay_hist.save()
                     
                     response_data['point_info'] = point_info
@@ -144,15 +149,25 @@ class PayApproveView(APIView):
                         # 최대 재시도 횟수 초과
                         print(f"Database error after {max_retries} attempts: {e}")
                         return Response(
-                            {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                            {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR
                         )
                 except Exception as e:
                     # 기타 예상치 못한 오류
                     print(f"Unexpected error in payment approval: {e}")
                     return Response(
-                        {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                        {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
 
         return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-approved_at')
+        serializer = PaymentHistorySerializer(payments, many=True)
+        return Response(serializer.data)
