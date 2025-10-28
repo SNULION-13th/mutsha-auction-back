@@ -1,5 +1,6 @@
 from rest_framework.serializers import ModelSerializer
 from rest_framework import serializers
+from .models import Payment
 
 class PayReadyRequestSerializer(serializers.Serializer):
   partner_order_id = serializers.CharField()
@@ -37,4 +38,10 @@ class PayApproveResponseSerializer(serializers.Serializer):
   created_at = serializers.DateTimeField()
   approved_at = serializers.DateTimeField()
   payload = serializers.CharField()
-  
+
+class PaymentHistorySerializer(ModelSerializer):
+    amount = serializers.IntegerField(source='price')
+
+    class Meta:
+        model = Payment
+        fields = ['item_name', 'amount', 'payment_method_type', 'approved_at']
