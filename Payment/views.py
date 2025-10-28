@@ -15,6 +15,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.db import IntegrityError, OperationalError
+from django.utils import timezone
 import time
 
 pay_key = settings.KAKAO_PAY_KEY
@@ -151,8 +152,22 @@ class PayApproveView(APIView):
                                 'new_points': new_points
                             }
                         
-                        # 결제 상태 업데이트
+                        # 결제 상태 및 추가 정보 업데이트
                         pay_hist.pay_status = 'approved'
+                        pay_hist.item_name = f"{pay_hist.point}포인트"
+                        pay_hist.payment_method_type = response_data.get('payment_method_type', 'CARD')
+                        
+                        # approved_at 시간 파싱 및 저장
+                        approved_at_str = response_data.get('approved_at')
+                        if approved_at_str:
+                            try:
+                                from datetime import datetime
+                                pay_hist.approved_at = datetime.fromisoformat(approved_at_str.replace('Z', '+00:00'))
+                            except:
+                                pay_hist.approved_at = timezone.now()
+                        else:
+                            pay_hist.approved_at = timezone.now()
+                        
                         pay_hist.save()
                     
                     response_data['point_info'] = point_info
@@ -180,3 +195,84 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryView(APIView):
+    @swagger_auto_schema(
+        operation_id="카카오페이 주문내역 조회 API",
+        operation_description="사용자의 카카오페이 결제 내역을 조회합니다.",
+        responses={200: "결제 내역 목록", 401: "please signin."},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
+    )
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 사용자의 결제 내역 조회 (승인된 결제만)
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-created_at')
+        
+        payment_history = []
+        for payment in payments:
+            # 기본 결제 정보 구성 (카카오페이 API 호출 없이도 표시)
+            base_payment_data = {
+                'tid': payment.tid,
+                'partner_order_id': payment.partner_order_id,
+                'item_name': payment.item_name or f"{payment.point}포인트",
+                'amount': {
+                    'total': payment.price,
+                    'tax_free': 0,
+                    'vat': 0,
+                    'point': 0,
+                    'discount': 0
+                },
+                'payment_method_type': payment.payment_method_type or 'CARD',
+                'point': payment.point,
+                'price': payment.price,
+                'pay_status': payment.pay_status,
+                'created_at': payment.created_at,
+                'approved_at': payment.approved_at,
+                'order_detail': None
+            }
+            
+            # 카카오페이 API를 통해 상세 정보 조회 (선택적)
+            try:
+                order_data = {
+                    'cid': cid,
+                    'tid': payment.tid
+                }
+                order_data = json.dumps(order_data)
+                
+                response = requests.post(payment_detail_url, headers=pay_header, data=order_data)
+                
+                if response.status_code == 200:
+                    order_detail = response.json()
+                    
+                    # 카카오페이 API 응답에서 필요한 정보 추출하여 업데이트
+                    amount_info = order_detail.get('amount', {})
+                    payment_method = order_detail.get('payment_method_type', 'CARD')
+                    
+                    base_payment_data.update({
+                        'amount': {
+                            'total': amount_info.get('total', payment.price),
+                            'tax_free': amount_info.get('tax_free', 0),
+                            'vat': amount_info.get('vat', 0),
+                            'point': amount_info.get('point', 0),
+                            'discount': amount_info.get('discount', 0)
+                        },
+                        'payment_method_type': payment.payment_method_type or payment_method,
+                        'approved_at': payment.approved_at or order_detail.get('approved_at'),
+                        'order_detail': order_detail
+                    })
+                    
+                print(f"Successfully fetched details for payment {payment.tid}")
+            except Exception as e:
+                print(f"Error fetching payment detail for tid {payment.tid}: {e}")
+                # API 호출 실패해도 기본 정보는 표시
+            
+            payment_history.append(base_payment_data)
+        
+        return Response({
+            'data': payment_history,
+            'total_count': len(payment_history),
+            'status': 'success'
+        }, status=status.HTTP_200_OK)
