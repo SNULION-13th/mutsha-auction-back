@@ -34,6 +34,10 @@ SECRET_KEY = env('SECRET_KEY')
 KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY') 
 KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
 
+
+KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -49,6 +53,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'Payment',
+
     'django.contrib.staticfiles',
     # External
     'drf_yasg',
