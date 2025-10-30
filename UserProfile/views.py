@@ -1,4 +1,3 @@
-from django.shortcuts import render
 
 # Create your views here.
 from django.contrib.auth.models import User
@@ -15,7 +14,6 @@ from django.conf import settings
 import requests
 kakao_client_id = settings.KAKAO_SECRET_KEY
 kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
-
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
 from .request_serializers import SignUpRequestSerializer, SignInRequestSerializer, TokenRefreshRequestSerializer, UserProfileUpdateRequestSerializer
@@ -237,7 +235,7 @@ class CheckUsernameView(APIView):
         if User.objects.filter(username=username).exists():
             return Response({"message": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"message": "Username is available"}, status=status.HTTP_200_OK)
-
+    
 class KakaoSignInCallbackView(APIView):
     @swagger_auto_schema(
         operation_id="카카오 로그인",

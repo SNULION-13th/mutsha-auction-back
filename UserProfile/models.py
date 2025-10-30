@@ -8,6 +8,3 @@ class UserProfile(models.Model):
     nickname = models.CharField(max_length=256, blank=True, null=True)
     remaining_points = models.IntegerField(default=0)
     is_social_login = models.BooleanField(default=False)
-
-
-

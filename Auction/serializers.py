@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Auction, Bid
-from UserProfile.serializers import UserProfileSerializer
 
 
 class AuctionSerializer(serializers.ModelSerializer):

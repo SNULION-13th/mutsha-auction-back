@@ -4,8 +4,6 @@ from .views import SignUpView, SignInView, SignOutView, TokenRefreshView, UserPr
 app_name = "UserProfile"
 urlpatterns = [
     # CBV url path
-    path("kakao/callback/", KakaoSignInCallbackView.as_view()),
-
     path("signup/", SignUpView.as_view()),
     path("signin/", SignInView.as_view()),
     path("signout/", SignOutView.as_view()),
@@ -14,4 +12,5 @@ urlpatterns = [
     path("me/", UserProfileDetailView.as_view()),
     path("check/", CheckUsernameView.as_view()),
     path("pointreduce/", RemainingPointDeductView.as_view()),
+    path("kakao/callback/", KakaoSignInCallbackView.as_view()),
 ]

@@ -15,7 +15,8 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-import os, environ
+import os
+import environ
 
 env = environ.Env(
     DEBUG=(bool, True)
@@ -30,11 +31,8 @@ environ.Env.read_env(
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
-
 KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY') 
 KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
-
-
 KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
 KAKAO_PAY_CID = env('KAKAO_PAY_CID')
 
@@ -53,8 +51,6 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'Payment',
-
     'django.contrib.staticfiles',
     # External
     'drf_yasg',
@@ -67,6 +63,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Auction',
+    'Payment',
 ]
 
 MIDDLEWARE = [
