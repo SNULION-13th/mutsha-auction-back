@@ -14,6 +14,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -27,24 +28,29 @@ from drf_yasg import openapi
 from rest_framework.routers import DefaultRouter
 
 schema_view = get_schema_view(
-   openapi.Info(
-      title="Auction API",
-      default_version='v1',
-      description="Auction API documentation",
-      terms_of_service="https://www.google.com/policies/terms/",
-      contact=openapi.Contact(email="contact@auction.local"),
-      license=openapi.License(name="BSD License"),
-   ),
-   public=True,
-   permission_classes=[permissions.AllowAny],
+    openapi.Info(
+        title="Auction API",
+        default_version="v1",
+        description="Auction API documentation",
+        terms_of_service="https://www.google.com/policies/terms/",
+        contact=openapi.Contact(email="contact@auction.local"),
+        license=openapi.License(name="BSD License"),
+    ),
+    public=True,
+    permission_classes=[permissions.AllowAny],
 )
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('api/user/', include('UserProfile.urls')),
-    path('api/point/', include('Point.urls')),
+    path("admin/", admin.site.urls),
+    path(
+        "swagger/",
+        schema_view.with_ui("swagger", cache_timeout=0),
+        name="schema-swagger-ui",
+    ),
+    path("api/user/", include("UserProfile.urls")),
+    path("api/point/", include("Point.urls")),
     path("api/auction/", include("Auction.urls")),
+    path("api/payment/", include("Payment.urls")),
 ]
 
 # 개발 환경에서 미디어 파일 서빙
