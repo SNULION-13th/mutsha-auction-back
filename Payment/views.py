@@ -22,6 +22,8 @@ cid = settings.KAKAO_PAY_CID
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 ### 이건 나중에 결제 승인 API 요청시 사용될 URL !
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
+### 주문 조회 API 요청 URL
+payorder_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
 
 pay_header = {
     'Content-Type': 'application/json',
@@ -145,4 +147,54 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
-        
+
+class PayOrderView(APIView):
+    def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        tid = request.data.get('tid')
+
+        if not tid:
+            return Response({"detail": "tid is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # tid로 결제 이력 조회
+        try:
+            pay_hist = Payment.objects.get(tid=tid, user=user)
+        except Payment.DoesNotExist:
+            return Response({"detail": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # 카카오페이 주문 조회 API 호출
+        pay_data = {
+            'cid': cid,
+            'tid': tid
+        }
+        pay_data = json.dumps(pay_data)
+        response = requests.post(payorder_url, headers=pay_header, data=pay_data)
+
+        return Response(response.json(), status=response.status_code)
+
+class PaymentHistoryView(APIView):
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # 해당 사용자의 모든 승인된 결제 내역 조회
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-id')
+
+        # 각 결제에 대해 카카오페이 API 호출하여 상세 정보 가져오기
+        payment_details = []
+        for payment in payments:
+            pay_data = {
+                'cid': cid,
+                'tid': payment.tid
+            }
+            pay_data_json = json.dumps(pay_data)
+            response = requests.post(payorder_url, headers=pay_header, data=pay_data_json)
+
+            if response.status_code == 200:
+                payment_details.append(response.json())
+
+        return Response(payment_details, status=status.HTTP_200_OK)
