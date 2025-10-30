@@ -31,6 +31,14 @@ environ.Env.read_env(
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
+### 🔻 이 부분 추가 ###
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY') 
+KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI') # .env에서 해당 변수들 가져오기
+
+### 🔻 이 부분 추가 ###
+KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -58,6 +66,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Auction',
+    'Payment',
 ]
 
 MIDDLEWARE = [
