@@ -37,3 +37,32 @@ class PayApproveResponseSerializer(serializers.Serializer):
   created_at = serializers.DateTimeField()
   approved_at = serializers.DateTimeField()
   payload = serializers.CharField()
+
+class OrderRequestSerializer(ModelSerializer):
+  cid = serializers.CharField()
+  tid = serializers.CharField()
+
+class AmountSerializer(serializers.Serializer):
+  total = serializers.IntegerField()
+  tax_free = serializers.IntegerField(required=False, default=0)
+  vat = serializers.IntegerField(required=False, default=0)
+  point = serializers.IntegerField(required=False, default=0)
+  discount = serializers.IntegerField(required=False, default=0)
+  green_deposit = serializers.IntegerField(required=False, default=0)
+
+class OrderResponseSerializer(ModelSerializer):
+  tid = serializers.CharField()
+  cid = serializers.CharField()
+  status = serializers.CharField()
+  partner_order_id = serializers.CharField()
+  partner_user_id = serializers.CharField()
+  payment_method_type = serializers.CharField()
+  amount = AmountSerializer()        
+  canceled_amount = AmountSerializer(required=False)
+  cancel_available_amount = AmountSerializer(required=False)
+  item_name = serializers.CharField()
+  quantity = serializers.IntegerField()
+  created_at = serializers.DateTimeField()
+  approved_at = serializers.DateTimeField(required=False, allow_null=True)
+  canceled_at = serializers.DateTimeField(required=False, allow_null=True)
+  selected_card_info = serializers.CharField(required=False, allow_null=True)
