@@ -163,3 +163,66 @@ class PayApproveView(APIView):
 
         return Response(response.json(), status=response.status_code)
         
+        
+        
+# view의 로직
+# 1) 로그인한 사용자(request.user)를 확인합니다.
+# 2) DB에서 이 사용자의 모든 Payment 객체를 조회하여 tid 목록을 가져옵니다.
+# 3) 각 tid를 가지고 카카오페이 "주문 조회" API를 호출합니다. (requests.get)
+# 4) 카카오페이에서 받은 응답들에서 필요한 4가지 정보(item_name, amount, payment_method_type, approved_at)만 골라 리스트에 담습니다.
+# 5) 이 리스트를 JsonResponse로 반환합니다.
+
+
+class PayHistoryView(APIView):
+    # 여기서 history data를 client가 get하는 것이므로 get 요청이다.
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED) # 1번 로그인 확인 및 유저 확인
+        try:
+            user_payments = Payment.objects.filter(user=user, pay_status='approved') # 2번 DB에서 이 사용자의 모든 Payment 객체를 조회하여 tid 목록을 가져옵니다.
+
+        except Payment.DoesNotExist:
+            return Response([]) # 빈 리스트를 반환
+    
+        # 3) 각 tid를 가지고 카카오페이 "주문 조회" API를 호출합니다. (requests.get)
+        kakao_api_url = "https://open-api.kakaopay.com/online/v1/payment/order"
+        
+        payment_history_list = [] # 결국 클라이언트 쪽으로 보낼 response 리스트
+        
+        # 조회한 Payment 객체들을 하나씩 순회하면서 호출해야함.
+        for payment in user_payments:
+            
+            try:
+                # 3-1) 카카오페이 "주문 조회" API 호출 (GET 요청!)
+                #      파일 상단에 정의된 pay_header를 사용합니다.
+                payload = {
+                'cid': cid,           # 파일 상단의 글로벌 변수 cid
+                'tid': payment.tid    # DB에서 가져온 tid
+            }
+                res = requests.post(kakao_api_url, headers=pay_header, data=json.dumps(payload))
+                res.raise_for_status() # 200 OK가 아니면 예외 발생
+
+                data = res.json() # 가져온 response를 추출
+
+                # 4) 요구사항에 맞는 4가지 정보만 추출
+                payment_info = {
+                    "item_name": data.get("item_name"),
+                    "amount": data.get("amount", {}).get("total"), # amount 객체 안의 total 금액
+                    "payment_method_type": data.get("payment_method_type"),
+                    "approved_at": data.get("approved_at"),
+                }
+                payment_history_list.append(payment_info) # 다 추출해서 정답 리스트에 추가
+
+            except requests.exceptions.RequestException as e:
+                # API 호출 실패 시 (네트워크 오류, 4xx/5xx 응답 등)
+                print(f"Kakao API Error for tid {payment.tid}: {e}")
+                # 해당 건은 무시하고 다음 결제 내역 조회로 넘어갑니다.
+                continue
+            except Exception as e:
+                # 기타 예외 처리
+                print(f"Error processing payment {payment.tid}: {e}")
+                continue
+
+        # 5) 수집된 모든 결제 내역 리스트를 반환합니다.
+        return Response(payment_history_list)
