@@ -1,5 +1,3 @@
-from django.shortcuts import render
-
 # Create your views here.
 from django.contrib.auth.models import User
 from rest_framework import status
@@ -76,7 +74,7 @@ class TokenRefreshView(APIView):
         manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request):
-        refresh_token = request.data.get("refresh")
+        refresh_token = request.COOKIES.get("refresh_token")
         if not refresh_token:
             return Response(
                 {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
@@ -108,14 +106,19 @@ class SignOutView(APIView):
                 {"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
-        refresh_token = request.data.get("refresh")
+        refresh_token = request.COOKIES.get("refresh_token")
         if not refresh_token:
             return Response(
                 {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
             )
         RefreshToken(refresh_token).blacklist()
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        response.delete_cookie("refresh_token")
+        response.delete_cookie("access_token")
+        return response
+
+        
 
 class UserProfileListView(APIView):
     @swagger_auto_schema(
