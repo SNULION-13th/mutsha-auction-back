@@ -31,6 +31,13 @@ environ.Env.read_env(
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
+# 카카오 로그인 설정
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY')
+KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
+
+KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -41,6 +48,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -57,6 +65,7 @@ INSTALLED_APPS = [
     # Internal
     'UserProfile',
     'Point',
+    'Payment',
     'Auction',
 ]
 
@@ -118,7 +127,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'seminar.wsgi.application'
+ASGI_APPLICATION = 'seminar.asgi.application'
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -127,6 +142,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 30,  # 데이터베이스 잠금 대기 시간 (초)
+        }
     }
 }
 
