@@ -3,6 +3,9 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from asgiref.sync import sync_to_async
 from .models import Auction
 
+# TODO: class NotificationConsumer(AsyncJsonWebsocketConsumer) 
+
+        
 class AuctionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.auction_id = self.scope["url_route"]["kwargs"]["auction_id"]
