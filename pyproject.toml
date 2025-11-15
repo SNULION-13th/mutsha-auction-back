@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "your-project-name"
+version = "0.1.0"
+description = "A short description of your project."
+authors = [
+  { name="Your Name", email="your@email.com" },
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    # ... 기존 의존성 목록은 그대로 둡니다 ...
+    "channels>=4.3.1",
+    "uvicorn[standard]>=0.38.0",
+    "websocket>=0.2.1",
+]
+
+# ===== 아래 부분을 추가하세요 =====
+[tool.setuptools]
+packages = ["Point", "Auction", "Payment", "seminar", "UserProfile"]
