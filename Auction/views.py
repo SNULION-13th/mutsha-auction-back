@@ -141,7 +141,7 @@ class AuctionCreateView(APIView):
                 "global_notifications",
                 {
                     "type": "auction_created",
-                    "data" : f"새 경매 [{auction.title}]가 등록되었습니다!"
+                    "data": {"message": f"새 경매 [{auction.title}]가 등록되었습니다!"}
                 },
             )
             
