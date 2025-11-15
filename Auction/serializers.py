@@ -99,8 +99,8 @@ class AuctionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Auction
         fields = [
-            'title', 'description', 'starting_price', 'image_url', 'image_file', 'end_time'
-        ]
+            'title', 'description', 'starting_price', 'current_price', 'image_url', 'image_file', 'end_time'
+        ] # 현재가에 시작가 반영하도록 수정
     
     def validate_end_time(self, value):
         """종료 시간 검증"""
