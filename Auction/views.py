@@ -1,3 +1,6 @@
+from django.db import transaction  # ⬅️ 데이터베이스 무결성을 위해 추가
+from channels.layers import get_channel_layer  # ⬅️ 채널 레이어를 가져오기 위해 추가
+from asgiref.sync import async_to_sync  # ⬅️ 동기 -> 비동기 함수 호출을 위해 추가
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -152,46 +155,65 @@ class BidCreateView(APIView):
         responses={201: BidSerializer, 400: "Bad Request", 401: "please signin", 404: "경매를 찾을 수 없습니다."},
         manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
+
     def post(self, request, auction_id):
         user = request.user
         if not user.is_authenticated:
             return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        try:
-            auction = Auction.objects.get(id=auction_id)
-            
-            # 경매가 진행중인지 확인
-            if not auction.is_active:
-                return Response(
-                    {"detail": "진행중인 경매가 아닙니다."}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # 입찰가 검증
-            amount = request.data.get('amount')
-            if not amount or amount <= auction.current_price:
-                return Response(
-                    {"detail": "현재가보다 높은 금액을 입찰해야 합니다."}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # 입찰 생성
-            bid = Bid.objects.create(
-                auction=auction,
-                bidder=user,
-                amount=amount
+
+        amount = request.data.get('amount')
+
+        if not amount:
+            return Response(
+                {"detail": "입찰가를 입력해주세요."},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            
-            # 경매의 현재가 업데이트
-            auction.current_price = amount
-            auction.save()
-            
-            serializer = BidSerializer(bid)
+        
+        # 입찰은 atomic하게... 여러 명이 한번에 하면 문제 발생!!
+        try:
+            with transaction.atomic():
+                auction = Auction.objects.select_for_update().get(id=auction_id)
+
+                if not auction.is_active:
+                    return Response(
+                        {"detail": "진행중인 경매가 아닙니다."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if amount <= auction.current_price:
+                    return Response(
+                        {"detail": "현재가보다 높은 금액을 입찰해야 합니다."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                bid = Bid.objects.create(
+                    auction=auction,
+                    bidder=user,
+                    amount=amount
+                )
+
+                auction.current_price = amount
+                auction.save()
+
+            # 실시간 입찰 정보 broadcast하기 ~ ^_^
+            # 새롭게 업데이트 된 auction 정보 전체를 시리얼라이저로 보냅니다
+
+            serializer = AuctionSerializer(auction, context={'request': request})
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"auction_{auction_id}",
+                {
+                    "type": "auction_update",
+                    "data": serializer.data,
+                },
+            )
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
+
         except Auction.DoesNotExist:
             return Response(
-                {"detail": "경매를 찾을 수 없습니다."}, 
+                {"detail": "경매를 찾을 수 없습니다."},
                 status=status.HTTP_404_NOT_FOUND
             )
 
