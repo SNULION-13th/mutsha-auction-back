@@ -165,3 +165,7 @@ python manage.py test
 | `KAKAO_REDIRECT_URI` | 카카오 로그인 리다이렉트 URI | http://localhost:8000/api/user/kakao/callback |
 | `KAKAO_PAY_KEY` | 카카오페이 시크릿 키 | your-kakao-pay-secret |
 | `CID` | 카카오페이 가맹점 ID | TC0ONETIME |
+
+
+# 명령어 모아놓기
+uv run uvicorn seminar.asgi:application --port 8000 --reload
