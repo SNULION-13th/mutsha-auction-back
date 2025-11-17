@@ -23,3 +23,20 @@ class AuctionConsumer(AsyncJsonWebsocketConsumer):
 
     async def auction_update(self, event):
         await self.send_json(event["data"])
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.auction_group_name = "global_notifications"
+
+        await self.channel_layer.group_add(
+            self.auction_group_name, self.channel_name
+        )
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.auction_group_name, self.channel_name
+        )
+
+    async def auction_update(self, event):
+        await self.send_json(event["data"])
