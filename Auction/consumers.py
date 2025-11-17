@@ -23,3 +23,15 @@ class AuctionConsumer(AsyncJsonWebsocketConsumer):
 
     async def auction_update(self, event):
         await self.send_json(event["data"])
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        await self.channel_layer.group_add("global_notifications", self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard("global_notifications", self.channel_name)
+
+    async def auction_created(self, event):
+        # event["data"]는 views.py에서 보낸 dict
+        await self.send_json(event["data"])
