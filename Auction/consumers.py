@@ -19,6 +19,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
 
     async def auction_created(self, event):
         await self.send_json(event["data"])
+        
 class AuctionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.auction_id = self.scope["url_route"]["kwargs"]["auction_id"]
