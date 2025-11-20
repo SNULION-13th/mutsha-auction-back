@@ -4,7 +4,9 @@ from .views import (
     AuctionListView,
     AuctionDetailView,
     AuctionCreateView,
-    BidCreateView
+    BidCreateView,
+    MyAuctionHistoryView,
+    MyBidHistoryView
 )
 
 app_name = "Auction"
@@ -24,4 +26,10 @@ urlpatterns = [
     
     # 입찰
     path("<int:auction_id>/bid/", BidCreateView.as_view(), name="bid_create"),
+    
+    # 내가 등록한 경매 히스토리
+    path("my-auctions/", MyAuctionHistoryView.as_view(), name="my_auction_history"),
+    
+    # 내가 입찰한 경매 히스토리
+    path("my-bids/", MyBidHistoryView.as_view(), name="my_bid_history"),
 ]

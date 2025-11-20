@@ -5,9 +5,14 @@ from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.db.models import Q
 import random
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 from .models import Auction, Bid
-from .serializers import AuctionSerializer, AuctionListSerializer, AuctionCreateSerializer, BidSerializer
+from .serializers import (
+    AuctionSerializer, AuctionListSerializer, AuctionCreateSerializer,
+    BidSerializer, MyAuctionHistorySerializer, MyBidHistorySerializer
+)
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
@@ -46,6 +51,16 @@ class AuctionListView(APIView):
         responses={200: AuctionListSerializer(many=True)},
     )
     def get(self, request):
+        # 종료된 경매 처리
+        ended_auctions = Auction.objects.filter(status='active', end_time__lt=timezone.now())
+        for auction in ended_auctions:
+            auction.status = 'ended'
+            # 최고 입찰자를 winner로 설정
+            highest_bid = auction.bids.order_by('-amount').first()
+            if highest_bid:
+                auction.winner = highest_bid.bidder
+            auction.save()
+        
         auctions = Auction.objects.all()
         
         # 상태 필터링
@@ -79,6 +94,15 @@ class AuctionDetailView(APIView):
     def get(self, request, auction_id):
         try:
             auction = Auction.objects.get(id=auction_id)
+            
+            # 경매가 종료되었는지 확인하고 winner 설정
+            if auction.status == 'active' and auction.end_time < timezone.now():
+                auction.status = 'ended'
+                highest_bid = auction.bids.order_by('-amount').first()
+                if highest_bid:
+                    auction.winner = highest_bid.bidder
+                auction.save()
+            
             serializer = AuctionSerializer(auction, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Auction.DoesNotExist:
@@ -95,13 +119,31 @@ class AuctionCreateView(APIView):
         operation_id="경매 생성",
         operation_description="새로운 경매를 생성합니다.",
         request_body=AuctionCreateSerializer,
-        responses={201: AuctionSerializer, 400: "Bad Request"},
+        responses={201: AuctionSerializer, 400: "Bad Request", 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+
         serializer = AuctionCreateSerializer(data=request.data)
         if serializer.is_valid():
             # 현재 로그인한 사용자를 판매자로 설정
-            auction = serializer.save(seller=request.user)
+            auction = serializer.save(seller=user)
+
+            # 글로벌 알림 전송
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "global_notifications",
+                {
+                    "type": "auction_created",
+                    "data": {
+                        "message": f"새 경매 [{auction.title}]가 등록되었습니다!"
+                    }
+                }
+            )
+
             response_serializer = AuctionSerializer(auction)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -122,9 +164,14 @@ class BidCreateView(APIView):
                 )
             },
         ),
-        responses={201: BidSerializer, 400: "Bad Request", 404: "경매를 찾을 수 없습니다."},
+        responses={201: BidSerializer, 400: "Bad Request", 401: "please signin", 404: "경매를 찾을 수 없습니다."},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request, auction_id):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         try:
             auction = Auction.objects.get(id=auction_id)
             
@@ -146,7 +193,7 @@ class BidCreateView(APIView):
             # 입찰 생성
             bid = Bid.objects.create(
                 auction=auction,
-                bidder=request.user,
+                bidder=user,
                 amount=amount
             )
             
@@ -162,3 +209,46 @@ class BidCreateView(APIView):
                 {"detail": "경매를 찾을 수 없습니다."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+class MyAuctionHistoryView(APIView):
+    """내가 등록한 경매 히스토리 API"""
+    
+    @swagger_auto_schema(
+        operation_id="내가 등록한 경매 히스토리",
+        operation_description="로그인한 사용자가 판매자로 등록한 경매 목록을 조회합니다.",
+        responses={200: MyAuctionHistorySerializer(many=True), 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
+    )
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 로그인한 사용자가 판매자인 경매들
+        my_auctions = Auction.objects.filter(seller=user).order_by('-created_at')
+        serializer = MyAuctionHistorySerializer(my_auctions, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class MyBidHistoryView(APIView):
+    """내가 입찰한 경매 히스토리 API"""
+    
+    @swagger_auto_schema(
+        operation_id="내가 입찰한 경매 히스토리",
+        operation_description="로그인한 사용자가 입찰한 경매 목록을 조회합니다.",
+        responses={200: MyBidHistorySerializer(many=True), 401: "please signin"},
+        manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
+    )
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # 로그인한 사용자가 입찰한 경매들
+        # Bid를 통해 사용자가 입찰한 경매의 ID를 가져옴
+        auction_ids = Bid.objects.filter(bidder=user).values_list('auction_id', flat=True).distinct()
+        my_bid_auctions = Auction.objects.filter(id__in=auction_ids).order_by('-updated_at')
+        
+        serializer = MyBidHistorySerializer(my_bid_auctions, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
