@@ -70,11 +70,3 @@ class Bid(models.Model):
     def save(self, *args, **kwargs):
         """입찰 저장 시 경매의 current_price 업데이트"""
         super().save(*args, **kwargs)
-
-        highest_bid = self.auction.bids.order_by('-amount').first()
-        if highest_bid:
-            self.auction.current_price = highest_bid.amount
-            self.auction.save(update_fields=['current_price'])
-        else:
-            self.auction.current_price = self.auction.starting_price
-            self.auction.save(update_fields=['current_price'])
