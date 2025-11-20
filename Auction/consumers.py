@@ -23,3 +23,24 @@ class AuctionConsumer(AsyncJsonWebsocketConsumer):
 
     async def auction_update(self, event):
         await self.send_json(event["data"])
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope["user"]
+        if self.user.is_anonymous:
+            await self.close()
+        else:
+            self.notification_group_name = f"global_notifications"
+
+            await self.channel_layer.group_add(
+                self.notification_group_name, self.channel_name
+            )
+            await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.notification_group_name, self.channel_name
+        )
+
+    async def auction_created(self, event):
+        await self.send_json(event["data"])
