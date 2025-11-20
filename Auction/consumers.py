@@ -3,7 +3,26 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from asgiref.sync import sync_to_async
 from .models import Auction
 
-# TODO: class NotificationConsumer(AsyncJsonWebsocketConsumer) 
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    """글로벌 알림을 위한 Consumer"""
+    
+    async def connect(self):
+        # 모든 사용자가 같은 글로벌 그룹에 연결
+        self.group_name = "global_notifications"
+        
+        await self.channel_layer.group_add(
+            self.group_name, self.channel_name
+        )
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.group_name, self.channel_name
+        )
+
+    async def auction_created(self, event):
+        """새 경매가 생성되었을 때 호출되는 핸들러"""
+        await self.send_json(event["data"])
 
         
 class AuctionConsumer(AsyncJsonWebsocketConsumer):
