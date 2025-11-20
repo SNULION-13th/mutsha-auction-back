@@ -134,6 +134,20 @@ class AuctionCreateView(APIView):
             auction = serializer.save(seller=user)
 
             #TODO: 
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "global_notifications",  # NotificationConsumer의 글로벌 그룹 이름
+                {
+                    "type": "auction_created",  # NotificationConsumer의 핸들러 메서드 이름
+                    "data": {
+                        "message": f"새 경매 [{auction.title}]가 등록되었습니다!",
+                        "auction_id": auction.id,
+                        "title": auction.title,
+                        "starting_price": auction.starting_price,
+                    }
+                }
+            )
+
             response_serializer = AuctionSerializer(auction)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
